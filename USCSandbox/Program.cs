@@ -9,6 +9,7 @@ namespace USCSandbox
     {
         static void Main(string[] args)
         {
+            Console.WriteLine("Hi welcome 2 USCSandbox, original program by nesrak1, fork by maybekoi/KoishiGH\n");
             var bundlePath = args[0];
             var assetsFileName = args[1];
             var shaderPathId = -1L; 
@@ -24,23 +25,93 @@ namespace USCSandbox
             Dictionary<long, string> files = [];
             if (bundlePath != "null")
             {
+                Console.WriteLine($"Loading bundle: {bundlePath}");
                 var bundleFile = manager.LoadBundleFile(bundlePath, true);
-                afileInst = manager.LoadAssetsFileFromBundle(bundleFile, assetsFileName);
-                afile = afileInst.file;
-                manager.LoadClassPackage("classdata.tpk");
-                manager.LoadClassDatabaseFromPackage(bundleFile.file.Header.EngineVersion);
-                ver = UnityVersion.Parse(bundleFile.file.Header.EngineVersion);
-                shaderTypeId = manager.ClassPackage.GetClassDatabase(ver.ToString()).FindAssetClassByName("Shader").ClassId;
-                
-                var ggm = manager.LoadAssetsFileFromBundle(bundleFile, "globalgamemanagers");
-                var rsrcInfo = ggm.file.GetAssetsOfType(AssetClassID.ResourceManager)[0];
-                var rsrcBf = manager.GetBaseField(ggm, rsrcInfo);
-                var m_Container = rsrcBf["m_Container.Array"];
-                foreach (var data in m_Container.Children)
+                if (bundleFile == null)
                 {
-                    var name = data[0].AsString;
-                    var pathId = data[1]["m_PathID"].AsLong;
-                    files[pathId] = name;
+                    Console.WriteLine("Failed to load bundle file");
+                    return;
+                }
+                Console.WriteLine($"Bundle loaded successfully. Unity version: {bundleFile.file.Header.EngineVersion}");
+                
+                Console.WriteLine("Available assets files in bundle:");
+                foreach (var asset in bundleFile.file.GetAllFileNames())
+                {
+                    Console.WriteLine($"- {asset}");
+                }
+                
+                Console.WriteLine($"Looking for assets file: {assetsFileName}");
+                afileInst = manager.LoadAssetsFileFromBundle(bundleFile, assetsFileName);
+                if (afileInst == null)
+                {
+                    Console.WriteLine("Failed to load assets file from bundle");
+                    return;
+                }
+                Console.WriteLine("Assets file loaded successfully");
+                afile = afileInst.file;
+
+                if (!File.Exists("classdata.tpk"))
+                {
+                    Console.WriteLine("Error: classdata.tpk file not found in the current directory");
+                    return;
+                }
+
+                ver = UnityVersion.Parse(bundleFile.file.Header.EngineVersion);
+                Console.WriteLine($"Unity version: {ver}");
+
+                Console.WriteLine("Loading class package...");
+                manager.LoadClassPackage("classdata.tpk");
+                
+                Console.WriteLine($"Loading class database for Unity version: {ver}");
+                try 
+                {
+                    manager.LoadClassDatabaseFromPackage(bundleFile.file.Header.EngineVersion);
+                    var classDb = manager.ClassPackage.GetClassDatabase(ver.ToString());
+                    if (classDb == null)
+                    {
+                        Console.WriteLine($"Error: Could not find class database for Unity version {ver}");
+                        return;
+                    }
+                    var shaderClass = classDb.FindAssetClassByName("Shader");
+                    if (shaderClass == null)
+                    {
+                        Console.WriteLine("Error: Could not find Shader class in database");
+                        return;
+                    }
+                    shaderTypeId = shaderClass.ClassId;
+                    Console.WriteLine($"Successfully loaded class database. Shader type ID: {shaderTypeId}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error loading class database: {ex.Message}");
+                    return;
+                }
+                
+                try
+                {
+                    Console.WriteLine("Attempting to load globalgamemanagers...");
+                    var ggm = manager.LoadAssetsFileFromBundle(bundleFile, "globalgamemanagers");
+                    if (ggm != null)
+                    {
+                        var rsrcInfo = ggm.file.GetAssetsOfType(AssetClassID.ResourceManager)[0];
+                        var rsrcBf = manager.GetBaseField(ggm, rsrcInfo);
+                        var m_Container = rsrcBf["m_Container.Array"];
+                        foreach (var data in m_Container.Children)
+                        {
+                            var name = data[0].AsString;
+                            var pathId = data[1]["m_PathID"].AsLong;
+                            files[pathId] = name;
+                        }
+                        Console.WriteLine("Successfully loaded globalgamemanagers");
+                    }
+                    else
+                    {
+                        Console.WriteLine("No globalgamemanagers found in bundle - this is normal for some bundles");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Note: Could not load globalgamemanagers: {ex.Message}");
                 }
             }
             else
